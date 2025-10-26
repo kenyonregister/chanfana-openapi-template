@@ -10,6 +10,9 @@ dist/
 .output/
 .wrangler/
 
+# Generated files
+schema.json
+
 # Environment files
 .env
 .env.*
