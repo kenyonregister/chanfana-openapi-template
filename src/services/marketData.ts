@@ -27,6 +27,13 @@ export interface PremarketData {
   timestamp: string;
 }
 
+export interface IntradayData {
+  topRunners: StockQuote[];
+  breakoutStocks: StockQuote[];
+  volumeLeaders: StockQuote[];
+  timestamp: string;
+}
+
 export class MarketDataService {
   /**
    * Get premarket top movers
@@ -40,6 +47,27 @@ export class MarketDataService {
       topGainers: this.generateMockStocks(5, true),
       topLosers: this.generateMockStocks(5, false),
       volumeSpikes: this.generateMockStocks(5, true),
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Get intraday runners - stocks making significant moves during trading hours
+   * 
+   * Captures momentum stocks with:
+   * - Strong intraday price movements (runners)
+   * - Technical breakouts above resistance
+   * - Unusual volume spikes during the day
+   * 
+   * In production, this would fetch real-time intraday data from market data APIs
+   */
+  async getIntradayData(): Promise<IntradayData> {
+    // TODO: Integrate with real market data API for intraday scanning
+    
+    return {
+      topRunners: this.generateIntradayRunners(5),
+      breakoutStocks: this.generateBreakoutStocks(5),
+      volumeLeaders: this.generateVolumeLeaders(5),
       timestamp: new Date().toISOString(),
     };
   }
@@ -122,6 +150,96 @@ export class MarketDataService {
         change: baseChange,
         changePercent: baseChange / 10,
         volume: Math.floor(Math.random() * 10000000) + 1000000,
+        companyName: `${symbol} Inc.`,
+      });
+    }
+    
+    return results;
+  }
+
+  /**
+   * Generate mock intraday runners - stocks with strong momentum
+   */
+  private generateIntradayRunners(count: number): StockQuote[] {
+    const symbols = [
+      "TSLA", "NVDA", "AMD", "PLTR", "COIN", "HOOD", "RIOT", 
+      "MARA", "MSTR", "SOFI", "LCID", "RIVN", "NIO", "PLUG"
+    ];
+    
+    const results: StockQuote[] = [];
+    const shuffled = [...symbols].sort(() => 0.5 - Math.random());
+    
+    for (let i = 0; i < count && i < shuffled.length; i++) {
+      const symbol = shuffled[i];
+      // Intraday runners typically show 5-20% gains
+      const changePercent = Math.random() * 15 + 5;
+      
+      results.push({
+        symbol,
+        price: Math.random() * 300 + 20,
+        change: changePercent,
+        changePercent: changePercent,
+        volume: Math.floor(Math.random() * 20000000) + 5000000,
+        companyName: `${symbol} Inc.`,
+      });
+    }
+    
+    return results;
+  }
+
+  /**
+   * Generate mock breakout stocks - stocks breaking technical resistance
+   */
+  private generateBreakoutStocks(count: number): StockQuote[] {
+    const symbols = [
+      "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NFLX", 
+      "CRM", "ADBE", "ORCL", "INTC", "CSCO", "QCOM"
+    ];
+    
+    const results: StockQuote[] = [];
+    const shuffled = [...symbols].sort(() => 0.5 - Math.random());
+    
+    for (let i = 0; i < count && i < shuffled.length; i++) {
+      const symbol = shuffled[i];
+      // Breakouts typically show 3-8% moves
+      const changePercent = Math.random() * 5 + 3;
+      
+      results.push({
+        symbol,
+        price: Math.random() * 400 + 50,
+        change: changePercent,
+        changePercent: changePercent,
+        volume: Math.floor(Math.random() * 15000000) + 3000000,
+        companyName: `${symbol} Inc.`,
+      });
+    }
+    
+    return results;
+  }
+
+  /**
+   * Generate mock volume leaders - stocks with unusual volume
+   */
+  private generateVolumeLeaders(count: number): StockQuote[] {
+    const symbols = [
+      "SPY", "QQQ", "AAPL", "TSLA", "NVDA", "AMD", "SOXL",
+      "TQQQ", "SQQQ", "SPXL", "UDOW", "TNA"
+    ];
+    
+    const results: StockQuote[] = [];
+    const shuffled = [...symbols].sort(() => 0.5 - Math.random());
+    
+    for (let i = 0; i < count && i < shuffled.length; i++) {
+      const symbol = shuffled[i];
+      const changePercent = Math.random() * 8 - 2;
+      
+      results.push({
+        symbol,
+        price: Math.random() * 450 + 30,
+        change: changePercent,
+        changePercent: changePercent,
+        // Volume leaders have exceptional volume
+        volume: Math.floor(Math.random() * 50000000) + 20000000,
         companyName: `${symbol} Inc.`,
       });
     }

@@ -43,13 +43,13 @@ export class StockScannerService {
    * Run the main stock scanning algorithm
    * 
    * This combines multiple data sources to generate high-confidence stock picks:
-   * 1. Get premarket movers
+   * 1. Get premarket and intraday movers
    * 2. Analyze sentiment for each
    * 3. Check for earnings/news events
    * 4. Calculate confidence scores
    * 5. Filter and rank results
    */
-  async scanStocks(config: ScannerConfig): Promise<StockPick[]> {
+  async scanStocks(config: ScannerConfig, includeIntraday: boolean = true): Promise<StockPick[]> {
     // Get premarket data
     const premarketData = await this.marketDataService.getPremarketData();
     
@@ -58,6 +58,14 @@ export class StockScannerService {
     premarketData.topGainers.forEach(s => candidateSymbols.add(s.symbol));
     premarketData.topLosers.forEach(s => candidateSymbols.add(s.symbol));
     premarketData.volumeSpikes.forEach(s => candidateSymbols.add(s.symbol));
+    
+    // Get intraday runners if enabled
+    if (includeIntraday) {
+      const intradayData = await this.marketDataService.getIntradayData();
+      intradayData.topRunners.forEach(s => candidateSymbols.add(s.symbol));
+      intradayData.breakoutStocks.forEach(s => candidateSymbols.add(s.symbol));
+      intradayData.volumeLeaders.forEach(s => candidateSymbols.add(s.symbol));
+    }
     
     // Get trending stocks from sentiment
     const trendingStocks = await this.sentimentService.getTrendingStocks();
@@ -70,7 +78,7 @@ export class StockScannerService {
     
     for (const symbol of symbols) {
       try {
-        const pick = await this.analyzeStock(symbol, config);
+        const pick = await this.analyzeStock(symbol, config, includeIntraday);
         
         // Filter by minimum confidence
         if (pick.confidenceScore >= config.minConfidenceScore) {
@@ -92,7 +100,8 @@ export class StockScannerService {
    */
   private async analyzeStock(
     symbol: string,
-    config: ScannerConfig
+    config: ScannerConfig,
+    isIntraday: boolean = false
   ): Promise<StockPick> {
     // Get market data
     const quote = await this.marketDataService.getQuote(symbol);
@@ -104,17 +113,22 @@ export class StockScannerService {
     const confidenceScore = this.calculateConfidenceScore(
       quote,
       sentiment,
-      config
+      config,
+      isIntraday
     );
     
     // Generate reasoning
-    const reasoning = this.generateReasoning(quote, sentiment);
+    const reasoning = this.generateReasoning(quote, sentiment, isIntraday);
     
     // Determine data sources used
     const dataSources = [
       ...sentiment.sources.map(s => s.name),
       "market_data",
     ];
+    
+    if (isIntraday) {
+      dataSources.push("intraday_scanner");
+    }
     
     return {
       symbol,
@@ -126,7 +140,7 @@ export class StockScannerService {
       priceChangePercent: quote.changePercent,
       reasoning,
       dataSources,
-      isPremarket: true,
+      isPremarket: !isIntraday,
       pickDate: new Date().toISOString(),
     };
   }
@@ -139,11 +153,13 @@ export class StockScannerService {
    * - Volume (high volume increases confidence)
    * - Price momentum (strong moves increase confidence)
    * - Trending status (social media buzz increases confidence)
+   * - Intraday momentum (extra weight for sustained moves)
    */
   private calculateConfidenceScore(
     quote: StockQuote,
     sentiment: SentimentAnalysis,
-    config: ScannerConfig
+    config: ScannerConfig,
+    isIntraday: boolean = false
   ): number {
     let score = 0;
     
@@ -163,9 +179,13 @@ export class StockScannerService {
     }
     
     // Price momentum factor (0-25 points)
+    // Intraday runners get bonus points for sustained momentum
     const absChange = Math.abs(quote.changePercent);
     if (absChange > 10) {
       score += 25;
+      if (isIntraday && absChange > 15) {
+        score += 5; // Bonus for strong intraday runners
+      }
     } else if (absChange > 5) {
       score += 15;
     } else if (absChange > 2) {
@@ -177,8 +197,14 @@ export class StockScannerService {
       score += 20;
     }
     
-    // Normalize to 0-1 range
-    return Math.min(score / 100, 1.0);
+    // Intraday momentum bonus (0-10 points)
+    // Stocks showing strength during trading hours get extra weight
+    if (isIntraday && quote.changePercent > 5) {
+      score += 10;
+    }
+    
+    // Normalize to 0-1 range (max 110 points with intraday bonus)
+    return Math.min(score / (isIntraday ? 110 : 100), 1.0);
   }
 
   /**
@@ -186,14 +212,16 @@ export class StockScannerService {
    */
   private generateReasoning(
     quote: StockQuote,
-    sentiment: SentimentAnalysis
+    sentiment: SentimentAnalysis,
+    isIntraday: boolean = false
   ): string[] {
     const reasons: string[] = [];
     
     // Price movement
     if (Math.abs(quote.changePercent) > 5) {
+      const prefix = isIntraday ? "Intraday momentum" : "Strong price movement";
       reasons.push(
-        `Strong price movement: ${quote.changePercent > 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%`
+        `${prefix}: ${quote.changePercent > 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%`
       );
     }
     
@@ -212,6 +240,11 @@ export class StockScannerService {
     // Trending
     if (sentiment.trending) {
       reasons.push("Trending on social media");
+    }
+    
+    // Intraday runner indicator
+    if (isIntraday && quote.changePercent > 10) {
+      reasons.push("Strong intraday runner");
     }
     
     // Keywords

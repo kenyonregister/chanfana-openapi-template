@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { fromHono } from "chanfana";
 import { PremarketEndpoint } from "./premarket";
+import { IntradayEndpoint } from "./intraday";
 import { StockPicksEndpoint } from "./picks";
 import { SentimentEndpoint } from "./sentiment";
 import { ScanEndpoint } from "./scan";
@@ -12,6 +13,7 @@ export const stocksRouter = fromHono(new Hono());
 
 // Market data endpoints
 stocksRouter.get("/premarket", PremarketEndpoint);
+stocksRouter.get("/intraday", IntradayEndpoint);
 
 // Stock picks and sentiment
 stocksRouter.get("/picks", StockPicksEndpoint);

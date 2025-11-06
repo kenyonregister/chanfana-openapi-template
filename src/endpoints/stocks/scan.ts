@@ -16,6 +16,7 @@ export class ScanEndpoint extends OpenAPIRoute {
           min_confidence: z.number().min(0).max(1).optional().default(0.6),
           tweet_results: z.boolean().optional().default(false),
           limit: z.number().min(1).max(20).optional().default(10),
+          include_intraday: z.boolean().optional().default(true),
         })
       ),
     },
@@ -50,7 +51,7 @@ export class ScanEndpoint extends OpenAPIRoute {
 
   public async handle(c: AppContext) {
     const data = await this.getValidatedData<typeof this.schema>();
-    const { min_confidence, tweet_results, limit } = data.body;
+    const { min_confidence, tweet_results, limit, include_intraday } = data.body;
 
     // Get configuration
     const config: ScannerConfig = {
@@ -61,9 +62,9 @@ export class ScanEndpoint extends OpenAPIRoute {
       keywords: ["earnings", "merger", "FDA approval"],
     };
 
-    // Run the scanner
+    // Run the scanner with intraday option
     const scannerService = new StockScannerService();
-    const picks = await scannerService.scanStocks(config);
+    const picks = await scannerService.scanStocks(config, include_intraday);
 
     // Limit results
     const limitedPicks = picks.slice(0, limit);

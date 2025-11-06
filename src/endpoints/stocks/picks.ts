@@ -7,12 +7,13 @@ export class StockPicksEndpoint extends OpenAPIRoute {
   public schema = {
     tags: ["Stocks"],
     summary: "Get AI-generated stock picks",
-    description: "Returns stock picks based on sentiment analysis, market data, and other signals",
+    description: "Returns stock picks based on sentiment analysis, market data, and other signals. Includes both premarket and intraday runners.",
     operationId: "get-stock-picks",
     request: {
       query: z.object({
         min_confidence: z.string().optional().transform(val => val ? parseFloat(val) : 0.6),
         limit: z.string().optional().transform(val => val ? parseInt(val) : 10),
+        include_intraday: z.string().optional().transform(val => val !== 'false'),
       }),
     },
     responses: {
@@ -44,7 +45,7 @@ export class StockPicksEndpoint extends OpenAPIRoute {
 
   public async handle(c: AppContext) {
     const data = await this.getValidatedData<typeof this.schema>();
-    const { min_confidence, limit } = data.query;
+    const { min_confidence, limit, include_intraday } = data.query;
 
     // Get configuration (in production, this would come from database)
     const config: ScannerConfig = {
@@ -56,7 +57,7 @@ export class StockPicksEndpoint extends OpenAPIRoute {
     };
 
     const scannerService = new StockScannerService();
-    const picks = await scannerService.scanStocks(config);
+    const picks = await scannerService.scanStocks(config, include_intraday);
 
     // Limit results
     const limitedPicks = picks.slice(0, limit);

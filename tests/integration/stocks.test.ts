@@ -17,6 +17,32 @@ describe("Stock Scanner Endpoints", () => {
     });
   });
 
+  describe("GET /stocks/intraday", () => {
+    it("should return intraday runners data", async () => {
+      const res = await SELF.fetch("http://local.test/stocks/intraday");
+      expect(res.status).toBe(200);
+      
+      const data = await res.json();
+      expect(data.success).toBe(true);
+      expect(data.result).toBeDefined();
+      expect(data.result.topRunners).toBeDefined();
+      expect(data.result.breakoutStocks).toBeDefined();
+      expect(data.result.volumeLeaders).toBeDefined();
+      expect(Array.isArray(data.result.topRunners)).toBe(true);
+    });
+
+    it("should return stocks with positive momentum", async () => {
+      const res = await SELF.fetch("http://local.test/stocks/intraday");
+      expect(res.status).toBe(200);
+      
+      const data = await res.json();
+      // Intraday runners should have positive price changes
+      data.result.topRunners.forEach((stock: any) => {
+        expect(stock.changePercent).toBeGreaterThan(0);
+      });
+    });
+  });
+
   describe("GET /stocks/picks", () => {
     it("should return stock picks", async () => {
       const res = await SELF.fetch("http://local.test/stocks/picks");
@@ -28,6 +54,16 @@ describe("Stock Scanner Endpoints", () => {
       expect(data.result.picks).toBeDefined();
       expect(Array.isArray(data.result.picks)).toBe(true);
       expect(data.result.count).toBeGreaterThanOrEqual(0);
+    });
+
+    it("should include intraday stocks by default", async () => {
+      const res = await SELF.fetch("http://local.test/stocks/picks");
+      expect(res.status).toBe(200);
+      
+      const data = await res.json();
+      expect(data.success).toBe(true);
+      // Should have picks from both premarket and intraday
+      expect(data.result.picks.length).toBeGreaterThan(0);
     });
 
     it("should respect min_confidence parameter", async () => {
